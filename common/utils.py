@@ -39,3 +39,10 @@ def explained_variance(ypred, y):
     assert y.ndim == 1 and ypred.ndim == 1
     vary = np.var(y)
     return np.nan if vary == 0 else 1 - np.var(y - ypred) / vary
+
+def categorical_kl(p_nk: torch.Tensor, q_nk: torch.Tensor):
+    # https://github.com/joschu/modular_rl/blob/master/modular_rl/distributions.py
+    ratio_nk = p_nk / (q_nk + 1e-6)
+    ratio_nk[p_nk == 0] = 1
+    ratio_nk[(q_nk == 0) & (p_nk != 0)] = np.inf
+    return (p_nk * np.log(ratio_nk)).sum(dim=1)

@@ -27,7 +27,8 @@ def get_params():
 
     # region default parameters
     default_params = {"state_shape": (4, 84, 84),
-                      "lr": 0.25,
+                      "damping": 1e-3,
+                      "k": 10,
                       "batch_size": 640,
                       "gamma": 0.99,
                       "ent_coeff": 0.01,  # noqa

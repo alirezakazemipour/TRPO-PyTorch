@@ -1,10 +1,9 @@
 from .model import CNNModel
 import torch
 from torch import from_numpy
-from torch.distributions import Normal
 import numpy as np
-from common import explained_variance
-
+from common import explained_variance, categorical_kl
+from .conjugate_gradients import cg
 
 class Brain:
     def __init__(self, **config):
@@ -39,11 +38,27 @@ class Brain:
         ent = dist.entropy().mean()
         log_prob = dist.log_prob(actions)
 
-        a_loss = -((log_prob - old_log_prob).exp() * advs).mean()
+        a_loss = -torch.mean((log_prob - old_log_prob).exp() * advs)
         c_loss = self.mse_loss(values_target, values_pred.squeeze(-1))
         total_loss = a_loss + self.config["critic_coeff"] * c_loss - self.config["ent_coeff"] * ent  # noqa
-
+        kl = categorical_kl(log_prob.exp(), old_log_prob).mean()
+        self.optimize(total_loss, kl)
         return a_loss.item(), c_loss.item(), ent.item(), explained_variance(values, returns)
+
+    def optimize(self, loss, kl):
+        grads = torch.autograd.grad(loss, self.model.parameters())
+        j = torch.cat([g.view(-1) for g in grads]).data
+
+        def fisher_vector_product(y):
+            grads = torch.autograd.grad(kl, self.model.parameters())
+            flat_grads = torch.cat([g.view(-1) for g in grads]).data
+
+            inner_prod = (flat_grads * y).sum()
+            grads = torch.autograd.grad(inner_prod, self.model.parameters())
+            flat_grads = torch.cat([g.view(-1) for g in grads]).data
+            return flat_grads + y * self.config["damping"]
+
+        opt_dir = cg(fisher_vector_product, -j, self.config["k"])
 
     def get_returns(self, rewards: np.ndarray, next_values: np.ndarray, dones: np.ndarray, n: int) -> np.ndarray:
         if next_values.shape == ():
