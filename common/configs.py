@@ -29,6 +29,7 @@ def get_params():
     default_params = {"state_shape": (4, 84, 84),
                       "damping": 1e-3,
                       "k": 10,
+                      "trust_region": 0.001,
                       "batch_size": 640,
                       "gamma": 0.99,
                       "ent_coeff": 0.01,  # noqa

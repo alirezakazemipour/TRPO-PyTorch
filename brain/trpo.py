@@ -59,6 +59,10 @@ class Brain:
             return flat_grads + y * self.config["damping"]
 
         opt_dir = cg(fisher_vector_product, -j, self.config["k"])
+        quadratic_term = (opt_dir * fisher_vector_product(opt_dir)).sum()
+        beta = torch.sqrt(2 * self.config["trust_region"] / quadratic_term)
+        opt_step = beta * opt_dir
+
 
     def get_returns(self, rewards: np.ndarray, next_values: np.ndarray, dones: np.ndarray, n: int) -> np.ndarray:
         if next_values.shape == ():
