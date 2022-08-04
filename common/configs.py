@@ -32,9 +32,10 @@ def get_params():
                       "trust_region": 0.001,
                       "batch_size": 512,
                       "line_search_num": 10,
+                      "value_opt_epoch": 3,
+                      "value_mini_batch_size": 64,
                       "gamma": 0.99,
                       "ent_coeff": 0.01,  # noqa
-                      "critic_coeff": 0.5,  # noqa
                       "n_workers": os.cpu_count() if parser_params.num_worker == -1 else parser_params.num_worker,
                       }
 

@@ -21,7 +21,7 @@ def init_wandb(online_mode=False):
     else:
         if not online_mode:
             os.environ["WANDB_MODE"] = "offline"
-        key = input("Please enter your wandb api key then press enter (just hit the enter if you don't have key):")
+        key = input("Please enter your wandb api key then press enter (just hit the enter if you don't have any):")
         wandb.login(key=key)
 
 
@@ -56,5 +56,5 @@ def get_flat_params_from(model: torch.nn.Module):
 def set_flat_params_to(params: torch.nn.Module.parameters, model: torch.nn.Module):
     pointer = 0
     for p in model.parameters():
-        p.copy_(params[pointer:pointer + p.data.numel()].detach().clone().view_as(p.data))
+        p.data.copy_(params[pointer:pointer + p.data.numel()].view_as(p.data))
         pointer += p.data.numel()

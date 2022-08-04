@@ -26,6 +26,15 @@ class Brain:
             log_prob = dist.log_prob(action)
         return action.cpu().numpy(), value.cpu().numpy().squeeze(), log_prob.cpu().numpy(), prob.cpu().numpy()
 
+    def choose_mini_batch(self, states, returns):
+
+        indices = np.random.randint(0, len(states), (self.config["batch_size"] // self.config["value_mini_batch_size"],
+                                                     self.config["value_mini_batch_size"]
+                                                     )
+                                    )
+        for idx in indices:
+            yield states[idx], returns[idx]
+
     def train(self, states, actions, rewards, dones, log_probs, probs, values, next_values):
         returns = self.get_returns(rewards, next_values, dones, n=self.config["n_workers"])
         values = np.hstack(values)
@@ -38,25 +47,34 @@ class Brain:
         old_log_prob = from_numpy(log_probs).to(self.device)
         old_probs = from_numpy(probs).to(self.device)
 
-        def get_loss() -> dict:
-            dist, values_pred, probs = self.model(states)
+        def get_actor_loss() -> dict:
+            dist, _, probs = self.model(states)
             ent = dist.entropy().mean()
             log_prob = dist.log_prob(actions)
-
             a_loss = -torch.mean((log_prob - old_log_prob).exp() * advs) - self.config["ent_coeff"] * ent
-            c_loss = self.mse_loss(values_target, values_pred.squeeze(-1))
-            total_loss = a_loss + self.config["critic_coeff"] * c_loss
             kl = categorical_kl(probs, old_probs).mean()
-            return dict(total_loss=total_loss, a_loss=a_loss, c_loss=c_loss, ent=ent, kl=kl)
+            return dict(a_loss=a_loss, ent=ent, kl=kl)
 
-        loss_dict= get_loss()
-        self.optimize(loss_dict, get_loss)
-        return loss_dict["a_loss"].item() + loss_dict["ent"].item(), \
-               loss_dict["c_loss"].item(), \
+        loss_dict = get_actor_loss()
+        self.optimize_actor(loss_dict, get_actor_loss)
+
+        for epoch in range(self.config["value_opt_epoch"]):
+            for state, return_ in self.choose_mini_batch(states=states,
+                                                         returns=values_target,
+                                                         ):
+                _, values_pred, _ = self.model(state)
+                c_loss = self.mse_loss(return_, values_pred.squeeze(-1))
+                self.value_optimizer.zero_grad()
+                c_loss.backward()
+                self.value_optimizer.step()
+
+        return loss_dict["a_loss"].item() + self.config["ent_coeff"] * loss_dict["ent"].item(), \
+               c_loss.item(), \
                loss_dict["ent"].item(), \
+               loss_dict["kl"].item(), \
                explained_variance(values, returns)
 
-    def optimize(self, loss_dict: dict, loss_fn):
+    def optimize_actor(self, loss_dict: dict, loss_fn):
         loss = loss_dict["a_loss"]
         grads = torch.autograd.grad(loss, self.model.actor.parameters())
         j = torch.cat([g.view(-1) for g in grads]).data
@@ -87,18 +105,13 @@ class Brain:
                 tmp = loss_fn()
                 new_loss = tmp["a_loss"]
                 new_kl = tmp["kl"]
-                improvment = new_loss - old_loss
-                if new_kl < 1.5 * self.config["trust_region"] and improvment >= 0 and np.isfinite(new_loss):
+                improvement = old_loss - new_loss
+                if new_kl < 1.5 * self.config["trust_region"] and improvement >= 0 and torch.isfinite(new_loss):
                     params_updated = True
                     break
                 exponent_shrink *= 0.5
             if not params_updated:
                 set_flat_params_to(flat_params, self.model.actor)
-
-        self.value_optimizer.zero_grad()
-        loss_dict["c_loss"].backward()
-        for i in range(3):
-            self.value_optimizer.step()
 
     def get_returns(self, rewards: np.ndarray, next_values: np.ndarray, dones: np.ndarray, n: int) -> np.ndarray:
         if next_values.shape == ():
@@ -115,7 +128,7 @@ class Brain:
 
     def set_from_checkpoint(self, checkpoint):
         self.model.load_state_dict(checkpoint["policy_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.value_optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     def prepare_to_play(self):
         self.model.eval()

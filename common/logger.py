@@ -78,7 +78,8 @@ class Logger:
                    "Running Actor Loss": self.running_training_logs[0],
                    "Running Critic Loss": self.running_training_logs[1],
                    "Running Entropy": self.running_training_logs[2],
-                   "Running Explained variance": self.running_training_logs[3],
+                   "KL": self.running_training_logs[3],
+                   "Running Explained variance": self.running_training_logs[4],
                    "episode": self.episode,
                    "iteration": iteration
                    }
@@ -125,7 +126,7 @@ class Logger:
     # region save_params
     def save_params(self, episode, iteration):
         torch.save({"model_state_dict": self.brain.model.state_dict(),
-                    # "optimizer_state_dict": self.brain.optimizer.state_dict(),
+                    "value_optimizer_state_dict": self.brain.value_optimizer.state_dict(),
                     "iteration": iteration,
                     "episode": episode,
                     "running_reward": self.running_reward,
@@ -146,14 +147,14 @@ class Logger:
         checkpoint = torch.load("weights/" + self.log_dir + "/params.pth")
 
         self.brain.model.load_state_dict(checkpoint["model_state_dict"])
-        self.brain.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.brain.value_optimizer.load_state_dict(checkpoint["value_optimizer_state_dict"])
 
         self.running_last_10_r = checkpoint["running_last_10_r"]
         self.running_training_logs = np.asarray(checkpoint["running_training_logs"])
         self.running_reward = checkpoint["running_reward"]
 
         if not self.config["do_test"] and not self.config["train_from_scratch"]:
-            wandb.init(project="ACKTR",  # noqa
+            wandb.init(project="TRPO",  # noqa
                        config=self.config,
                        job_type="train",
                        name=self.log_dir
