@@ -2,7 +2,7 @@ from typing import Callable
 import torch
 
 
-def cg(A: Callable, b: torch.Tensor, steps: int, tol: float = 1e-6): # noqa
+def cg(A: Callable, b: torch.Tensor, steps: int, tol: float = 1e-6) -> torch.Tensor: # noqa
     x = torch.zeros_like(b)
     r = b - A(x)
     d = r.clone()

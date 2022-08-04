@@ -2,8 +2,10 @@ from .model import CNNModel
 import torch
 from torch import from_numpy
 import numpy as np
-from common import explained_variance, categorical_kl
+from common import explained_variance, categorical_kl, get_flat_params_from, set_flat_params_to
 from .conjugate_gradients import cg
+from torch.optim.adam import Adam
+
 
 class Brain:
     def __init__(self, **config):
@@ -12,18 +14,19 @@ class Brain:
 
         self.model = CNNModel(self.config["state_shape"], self.config["n_actions"]).to(self.device)
         self.mse_loss = torch.nn.MSELoss()
+        self.value_optimizer = Adam(self.model.critic.parameters(), 1e-4)
 
     def get_actions_and_values(self, state, batch=False):
         if not batch:
             state = np.expand_dims(state, 0)
         state = from_numpy(state).to(self.device)
         with torch.no_grad():
-            dist, value = self.model(state)
+            dist, value, prob = self.model(state)
             action = dist.sample()
             log_prob = dist.log_prob(action)
-        return action.cpu().numpy(), value.cpu().numpy().squeeze(), log_prob.cpu().numpy()
+        return action.cpu().numpy(), value.cpu().numpy().squeeze(), log_prob.cpu().numpy(), prob.cpu().numpy()
 
-    def train(self, states, actions, rewards, dones, log_probs, values, next_values):
+    def train(self, states, actions, rewards, dones, log_probs, probs, values, next_values):
         returns = self.get_returns(rewards, next_values, dones, n=self.config["n_workers"])
         values = np.hstack(values)
         advs = returns - values
@@ -33,29 +36,39 @@ class Brain:
         advs = from_numpy(advs).to(self.device)
         values_target = from_numpy(returns).to(self.device)
         old_log_prob = from_numpy(log_probs).to(self.device)
+        old_probs = from_numpy(probs).to(self.device)
 
-        dist, values_pred = self.model(states)
-        ent = dist.entropy().mean()
-        log_prob = dist.log_prob(actions)
+        def get_loss() -> dict:
+            dist, values_pred, probs = self.model(states)
+            ent = dist.entropy().mean()
+            log_prob = dist.log_prob(actions)
 
-        a_loss = -torch.mean((log_prob - old_log_prob).exp() * advs)
-        c_loss = self.mse_loss(values_target, values_pred.squeeze(-1))
-        total_loss = a_loss + self.config["critic_coeff"] * c_loss - self.config["ent_coeff"] * ent  # noqa
-        kl = categorical_kl(log_prob.exp(), old_log_prob).mean()
-        self.optimize(total_loss, kl)
-        return a_loss.item(), c_loss.item(), ent.item(), explained_variance(values, returns)
+            a_loss = -torch.mean((log_prob - old_log_prob).exp() * advs) - self.config["ent_coeff"] * ent
+            c_loss = self.mse_loss(values_target, values_pred.squeeze(-1))
+            total_loss = a_loss + self.config["critic_coeff"] * c_loss
+            kl = categorical_kl(probs, old_probs).mean()
+            return dict(total_loss=total_loss, a_loss=a_loss, c_loss=c_loss, ent=ent, kl=kl)
 
-    def optimize(self, loss, kl):
-        grads = torch.autograd.grad(loss, self.model.parameters())
+        loss_dict= get_loss()
+        self.optimize(loss_dict, get_loss)
+        return loss_dict["a_loss"].item() + loss_dict["ent"].item(), \
+               loss_dict["c_loss"].item(), \
+               loss_dict["ent"].item(), \
+               explained_variance(values, returns)
+
+    def optimize(self, loss_dict: dict, loss_fn):
+        loss = loss_dict["a_loss"]
+        grads = torch.autograd.grad(loss, self.model.actor.parameters())
         j = torch.cat([g.view(-1) for g in grads]).data
 
         def fisher_vector_product(y):
-            grads = torch.autograd.grad(kl, self.model.parameters())
-            flat_grads = torch.cat([g.view(-1) for g in grads]).data
+            kl = loss_fn()["kl"]
+            grads = torch.autograd.grad(kl, self.model.actor.parameters(), create_graph=True)
+            flat_grads = torch.cat([g.view(-1) for g in grads])
 
             inner_prod = (flat_grads * y).sum()
-            grads = torch.autograd.grad(inner_prod, self.model.parameters())
-            flat_grads = torch.cat([g.view(-1) for g in grads]).data
+            grads = torch.autograd.grad(inner_prod, self.model.actor.parameters())
+            flat_grads = torch.cat([g.reshape(-1) for g in grads]).data
             return flat_grads + y * self.config["damping"]
 
         opt_dir = cg(fisher_vector_product, -j, self.config["k"])
@@ -63,6 +76,29 @@ class Brain:
         beta = torch.sqrt(2 * self.config["trust_region"] / quadratic_term)
         opt_step = beta * opt_dir
 
+        with torch.no_grad():
+            old_loss = loss_fn()["a_loss"]
+            flat_params = get_flat_params_from(self.model.actor)
+            exponent_shrink = 1
+            params_updated = False
+            for _ in range(self.config["line_search_num"]):
+                new_params = flat_params + opt_step * exponent_shrink
+                set_flat_params_to(new_params, self.model.actor)
+                tmp = loss_fn()
+                new_loss = tmp["a_loss"]
+                new_kl = tmp["kl"]
+                improvment = new_loss - old_loss
+                if new_kl < 1.5 * self.config["trust_region"] and improvment >= 0 and np.isfinite(new_loss):
+                    params_updated = True
+                    break
+                exponent_shrink *= 0.5
+            if not params_updated:
+                set_flat_params_to(flat_params, self.model.actor)
+
+        self.value_optimizer.zero_grad()
+        loss_dict["c_loss"].backward()
+        for i in range(3):
+            self.value_optimizer.step()
 
     def get_returns(self, rewards: np.ndarray, next_values: np.ndarray, dones: np.ndarray, n: int) -> np.ndarray:
         if next_values.shape == ():

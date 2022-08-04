@@ -125,7 +125,7 @@ class Logger:
     # region save_params
     def save_params(self, episode, iteration):
         torch.save({"model_state_dict": self.brain.model.state_dict(),
-                    "optimizer_state_dict": self.brain.optimizer.state_dict(),
+                    # "optimizer_state_dict": self.brain.optimizer.state_dict(),
                     "iteration": iteration,
                     "episode": episode,
                     "running_reward": self.running_reward,

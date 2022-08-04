@@ -30,7 +30,8 @@ def get_params():
                       "damping": 1e-3,
                       "k": 10,
                       "trust_region": 0.001,
-                      "batch_size": 640,
+                      "batch_size": 512,
+                      "line_search_num": 10,
                       "gamma": 0.99,
                       "ent_coeff": 0.01,  # noqa
                       "critic_coeff": 0.5,  # noqa

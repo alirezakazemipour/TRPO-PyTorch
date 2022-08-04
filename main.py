@@ -41,6 +41,7 @@ if __name__ == '__main__':
         total_dones = np.zeros(rollout_base_shape, dtype=bool)
         total_values = np.zeros(rollout_base_shape, dtype=np.float32)
         total_log_probs = np.zeros(rollout_base_shape)
+        total_probs = np.zeros(rollout_base_shape + (params["n_actions"], ))
         next_states = np.zeros((rollout_base_shape[0],) + params["state_shape"], dtype=np.uint8)
 
         logger.on()
@@ -53,8 +54,8 @@ if __name__ == '__main__':
                     s = parent.recv()
                     total_states[worker_id, t] = s
 
-                total_actions[:, t], total_values[:, t], total_log_probs[:, t] = brain.get_actions_and_values(
-                    total_states[:, t], batch=True)
+                total_actions[:, t], total_values[:, t], total_log_probs[:, t], total_probs[:, t] = \
+                    brain.get_actions_and_values(total_states[:, t], batch=True)
 
                 for parent, a in zip(parents, total_actions[:, t]):
                     parent.send(int(a))
@@ -73,13 +74,14 @@ if __name__ == '__main__':
                     episode_reward = 0
                     episode_length = 0
 
-            _, next_values, _ = brain.get_actions_and_values(next_states, batch=True)
+            _, next_values, *_ = brain.get_actions_and_values(next_states, batch=True)
 
             training_logs = brain.train(np.concatenate(total_states),
                                         np.concatenate(total_actions),
                                         total_rewards,
                                         total_dones,
                                         np.concatenate(total_log_probs),
+                                        np.concatenate(total_probs),
                                         total_values,
                                         next_values)
 
