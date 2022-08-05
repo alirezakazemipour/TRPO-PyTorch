@@ -16,17 +16,23 @@ class CNNModel(nn.Module, ABC):
         flatten_size = conv2_out_w * conv2_out_h * 16
 
         self.actor = nn.Sequential(nn.Conv2d(in_channels=c, out_channels=16, kernel_size=4, stride=2),
+                                   nn.ReLU(),
                                    nn.Conv2d(in_channels=16, out_channels=16, kernel_size=4, stride=2),
+                                   nn.ReLU(),
                                    nn.Flatten(),
                                    nn.Linear(in_features=flatten_size, out_features=20),
+                                   nn.ReLU(),
                                    nn.Linear(in_features=20, out_features=num_actions),
                                    nn.Softmax(dim=1)
                                    ).apply(self.init_weights)
 
         self.critic = nn.Sequential(nn.Conv2d(in_channels=c, out_channels=16, kernel_size=4, stride=2),
+                                    nn.ReLU(),
                                     nn.Conv2d(in_channels=16, out_channels=16, kernel_size=4, stride=2),
+                                    nn.ReLU(),
                                     nn.Flatten(),
                                     nn.Linear(in_features=flatten_size, out_features=20),
+                                    nn.ReLU(),
                                     nn.Linear(in_features=20, out_features=1),
                                     ).apply(self.init_weights)
 
@@ -37,13 +43,26 @@ class CNNModel(nn.Module, ABC):
         dist = Categorical(probs)
         return dist, value, probs
 
+    def run_actor(self, inputs):
+        x = inputs / 255.
+        probs = self.actor(x)
+        dist = Categorical(probs)
+        return dist, probs
+
+    def run_critic(self, inputs):
+        x = inputs / 255.
+        return self.critic(x)
+
     @staticmethod
     def init_weights(layer):
         if isinstance(layer, nn.Conv2d):
-            nn.init.orthogonal_(layer.weight, gain=nn.init.calculate_gain("relu"))
+            nn.init.kaiming_normal_(layer.weight, nonlinearity="relu")
             layer.bias.data.zero_()
         elif isinstance(layer, nn.Linear):
-            nn.init.xavier_uniform_(layer.weight)
+            if layer.out_features == 20:
+                nn.init.kaiming_normal_(layer.weight, nonlinearity="relu")
+            else:
+                nn.init.xavier_uniform_(layer.weight)
             layer.bias.data.zero_()
 
     @staticmethod

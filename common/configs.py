@@ -34,6 +34,8 @@ def get_params():
                       "line_search_num": 10,
                       "value_opt_epoch": 3,
                       "value_mini_batch_size": 64,
+                      "value_lr": 1e-4,
+                      "lambda": 0.95,
                       "gamma": 0.99,
                       "ent_coeff": 0.01,  # noqa
                       "n_workers": os.cpu_count() if parser_params.num_worker == -1 else parser_params.num_worker,

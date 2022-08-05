@@ -78,8 +78,7 @@ class Logger:
                    "Running Actor Loss": self.running_training_logs[0],
                    "Running Critic Loss": self.running_training_logs[1],
                    "Running Entropy": self.running_training_logs[2],
-                   "KL": self.running_training_logs[3],
-                   "Running Explained variance": self.running_training_logs[4],
+                   "Running Explained variance": self.running_training_logs[3],
                    "episode": self.episode,
                    "iteration": iteration
                    }

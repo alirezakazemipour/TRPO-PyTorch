@@ -14,7 +14,7 @@ class Brain:
 
         self.model = CNNModel(self.config["state_shape"], self.config["n_actions"]).to(self.device)
         self.mse_loss = torch.nn.MSELoss()
-        self.value_optimizer = Adam(self.model.critic.parameters(), 1e-4)
+        self.value_optimizer = Adam(self.model.critic.parameters(), self.config["value_lr"])
 
     def get_actions_and_values(self, state, batch=False):
         if not batch:
@@ -36,9 +36,10 @@ class Brain:
             yield states[idx], returns[idx]
 
     def train(self, states, actions, rewards, dones, log_probs, probs, values, next_values):
-        returns = self.get_returns(rewards, next_values, dones, n=self.config["n_workers"])
+        returns = self.get_returns(rewards, values, next_values, dones, n=self.config["n_workers"])
         values = np.hstack(values)
         advs = returns - values
+        advs = (advs - advs.mean()) / (advs.std() + 1e-6)
 
         states = from_numpy(states).to(self.device)
         actions = from_numpy(actions).to(self.device)
@@ -48,7 +49,7 @@ class Brain:
         old_probs = from_numpy(probs).to(self.device)
 
         def get_actor_loss() -> dict:
-            dist, _, probs = self.model(states)
+            dist, probs = self.model.run_actor(states)
             ent = dist.entropy().mean()
             log_prob = dist.log_prob(actions)
             a_loss = -torch.mean((log_prob - old_log_prob).exp() * advs) - self.config["ent_coeff"] * ent
@@ -62,7 +63,7 @@ class Brain:
             for state, return_ in self.choose_mini_batch(states=states,
                                                          returns=values_target,
                                                          ):
-                _, values_pred, _ = self.model(state)
+                values_pred = self.model.run_critic(state)
                 c_loss = self.mse_loss(return_, values_pred.squeeze(-1))
                 self.value_optimizer.zero_grad()
                 c_loss.backward()
@@ -71,7 +72,6 @@ class Brain:
         return loss_dict["a_loss"].item() + self.config["ent_coeff"] * loss_dict["ent"].item(), \
                c_loss.item(), \
                loss_dict["ent"].item(), \
-               loss_dict["kl"].item(), \
                explained_variance(values, returns)
 
     def optimize_actor(self, loss_dict: dict, loss_fn):
@@ -91,7 +91,7 @@ class Brain:
 
         opt_dir = cg(fisher_vector_product, -j, self.config["k"])
         quadratic_term = (opt_dir * fisher_vector_product(opt_dir)).sum()
-        beta = torch.sqrt(2 * self.config["trust_region"] / quadratic_term)
+        beta = torch.sqrt(2 * self.config["trust_region"] / (quadratic_term + 1e-6))
         opt_step = beta * opt_dir
 
         with torch.no_grad():
@@ -113,16 +113,26 @@ class Brain:
             if not params_updated:
                 set_flat_params_to(flat_params, self.model.actor)
 
-    def get_returns(self, rewards: np.ndarray, next_values: np.ndarray, dones: np.ndarray, n: int) -> np.ndarray:
+    def get_returns(self,
+                    rewards: np.ndarray,
+                    values: np.array,
+                    next_values: np.ndarray,
+                    dones: np.ndarray,
+                    n: int
+                    ) -> np.ndarray:
         if next_values.shape == ():
             next_values = next_values[None]
 
         returns = [[] for _ in range(n)]
+        extended_values = np.zeros((n, len(rewards[0]) + 1))
         for worker in range(n):
-            R = next_values[worker]  # noqa
+            extended_values[worker] = np.append(values[worker], next_values[worker])
+            gae = 0
             for step in reversed(range(len(rewards[worker]))):
-                R = rewards[worker][step] + self.config["gamma"] * R * (1 - dones[worker][step])  # noqa
-                returns[worker].insert(0, R)
+                delta = rewards[worker][step] + self.config["gamma"] * (extended_values[worker][step + 1]) * (
+                            1 - dones[worker][step]) - extended_values[worker][step]
+                gae = delta + self.config["gamma"] * self.config["lambda"] * (1 - dones[worker][step]) * gae
+                returns[worker].insert(0, gae + extended_values[worker][step])
 
         return np.hstack(returns).astype("float32")
 
