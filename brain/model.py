@@ -9,31 +9,31 @@ class CNNModel(nn.Module, ABC):
         super(CNNModel, self).__init__()
         c, w, h = input_shape
 
-        conv1_out_w = self.conv_shape(w, 4, 2)
-        conv1_out_h = self.conv_shape(h, 4, 2)
+        conv1_out_w = self.conv_shape(w, 8, 4)
+        conv1_out_h = self.conv_shape(h, 8, 4)
         conv2_out_w = self.conv_shape(conv1_out_w, 4, 2)
         conv2_out_h = self.conv_shape(conv1_out_h, 4, 2)
         flatten_size = conv2_out_w * conv2_out_h * 16
 
-        self.actor = nn.Sequential(nn.Conv2d(in_channels=c, out_channels=16, kernel_size=4, stride=2),
+        self.actor = nn.Sequential(nn.Conv2d(in_channels=c, out_channels=8, kernel_size=8, stride=4),
                                    nn.ReLU(),
-                                   nn.Conv2d(in_channels=16, out_channels=16, kernel_size=4, stride=2),
+                                   nn.Conv2d(in_channels=8, out_channels=16, kernel_size=4, stride=2),
                                    nn.ReLU(),
                                    nn.Flatten(),
-                                   nn.Linear(in_features=flatten_size, out_features=20),
+                                   nn.Linear(in_features=flatten_size, out_features=128),
                                    nn.ReLU(),
-                                   nn.Linear(in_features=20, out_features=num_actions),
+                                   nn.Linear(in_features=128, out_features=num_actions),
                                    nn.Softmax(dim=1)
                                    ).apply(self.init_weights)
 
-        self.critic = nn.Sequential(nn.Conv2d(in_channels=c, out_channels=16, kernel_size=4, stride=2),
+        self.critic = nn.Sequential(nn.Conv2d(in_channels=c, out_channels=8, kernel_size=8, stride=4),
                                     nn.ReLU(),
-                                    nn.Conv2d(in_channels=16, out_channels=16, kernel_size=4, stride=2),
+                                    nn.Conv2d(in_channels=8, out_channels=16, kernel_size=4, stride=2),
                                     nn.ReLU(),
                                     nn.Flatten(),
-                                    nn.Linear(in_features=flatten_size, out_features=20),
+                                    nn.Linear(in_features=flatten_size, out_features=128),
                                     nn.ReLU(),
-                                    nn.Linear(in_features=20, out_features=1),
+                                    nn.Linear(in_features=128, out_features=1),
                                     ).apply(self.init_weights)
 
     def forward(self, inputs):
@@ -59,7 +59,7 @@ class CNNModel(nn.Module, ABC):
             nn.init.kaiming_normal_(layer.weight, nonlinearity="relu")
             layer.bias.data.zero_()
         elif isinstance(layer, nn.Linear):
-            if layer.out_features == 20:
+            if layer.out_features == 128:
                 nn.init.kaiming_normal_(layer.weight, nonlinearity="relu")
             else:
                 nn.init.xavier_uniform_(layer.weight)

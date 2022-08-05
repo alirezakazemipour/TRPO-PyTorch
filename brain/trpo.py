@@ -28,9 +28,11 @@ class Brain:
 
     def choose_mini_batch(self, states, returns):
 
-        indices = np.random.randint(0, len(states), (self.config["batch_size"] // self.config["value_mini_batch_size"],
-                                                     self.config["value_mini_batch_size"]
-                                                     )
+        indices = np.random.randint(0,
+                                    len(states),
+                                    (self.config["batch_size"] // self.config["value_mini_batch_size"],
+                                     self.config["value_mini_batch_size"]
+                                     )
                                     )
         for idx in indices:
             yield states[idx], returns[idx]
@@ -61,7 +63,7 @@ class Brain:
 
         for epoch in range(self.config["value_opt_epoch"]):
             for state, return_ in self.choose_mini_batch(states=states,
-                                                         returns=values_target,
+                                                         returns=values_target
                                                          ):
                 values_pred = self.model.run_critic(state)
                 c_loss = self.mse_loss(return_, values_pred.squeeze(-1))
@@ -84,7 +86,7 @@ class Brain:
             grads = torch.autograd.grad(kl, self.model.actor.parameters(), create_graph=True)
             flat_grads = torch.cat([g.view(-1) for g in grads])
 
-            inner_prod = (flat_grads * y).sum()
+            inner_prod = flat_grads.t() @ y  # different results due to numerical precision and exploiting parallelism
             grads = torch.autograd.grad(inner_prod, self.model.actor.parameters())
             flat_grads = torch.cat([g.reshape(-1) for g in grads]).data
             return flat_grads + y * self.config["damping"]
@@ -130,7 +132,7 @@ class Brain:
             gae = 0
             for step in reversed(range(len(rewards[worker]))):
                 delta = rewards[worker][step] + self.config["gamma"] * (extended_values[worker][step + 1]) * (
-                            1 - dones[worker][step]) - extended_values[worker][step]
+                        1 - dones[worker][step]) - extended_values[worker][step]
                 gae = delta + self.config["gamma"] * self.config["lambda"] * (1 - dones[worker][step]) * gae
                 returns[worker].insert(0, gae + extended_values[worker][step])
 

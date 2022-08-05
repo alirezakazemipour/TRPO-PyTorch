@@ -7,7 +7,7 @@ def cg(A: Callable, b: torch.Tensor, steps: int, tol: float = 1e-6) -> torch.Ten
     r = b - A(x)
     d = r.clone()
     tol_new = r.t() @ r
-    for i in range(steps):
+    for _ in range(steps):
         if tol_new < tol:
             break
         q = A(d)

@@ -83,7 +83,8 @@ if __name__ == '__main__':
                                         np.concatenate(total_log_probs),
                                         np.concatenate(total_probs),
                                         total_values,
-                                        next_values)
+                                        next_values
+                                        )
 
             logger.log_iteration(iteration, training_logs)
 
