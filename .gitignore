@@ -133,3 +133,4 @@ dmypy.json
 wandb
 weights
 api_key.wandb
+vid

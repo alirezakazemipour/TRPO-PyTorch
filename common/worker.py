@@ -14,7 +14,7 @@ class Worker(Process):
         return str(self.id)
 
     def run(self):
-        self.env = make_atari(self.config["env_name"], episodic_life=False, seed=self.config["seed"] + self.id)
+        self.env = make_atari(self.config["env_name"], seed=self.config["seed"] + self.id)
         print(f"W{self.id}: started.")
         state = self.env.reset(seed=self.config["seed"] + self.id)
         while True:
