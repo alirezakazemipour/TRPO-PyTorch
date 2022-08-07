@@ -21,7 +21,7 @@ class Worker(Process):
             self.conn.send(state)
             action = self.conn.recv()
             next_state, reward, done, info = self.env.step(action)
-            self.conn.send((next_state, reward, done))
+            self.conn.send((next_state, reward, done, info))
             state = next_state
             if done:
                 state = self.env.reset()
