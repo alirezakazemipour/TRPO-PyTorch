@@ -86,7 +86,8 @@ class Brain:
             grads = torch.autograd.grad(kl, self.model.actor.parameters(), create_graph=True)
             flat_grads = torch.cat([g.view(-1) for g in grads])
 
-            inner_prod = flat_grads.t() @ y  # different results due to numerical precision and exploiting parallelism
+            inner_prod = flat_grads.t() @ y  # different results due to numerical precision and
+            # exploiting GPU parallelism by reduction in operations
             grads = torch.autograd.grad(inner_prod, self.model.actor.parameters())
             flat_grads = torch.cat([g.reshape(-1) for g in grads]).data
             return flat_grads + y * self.config["damping"]
