@@ -29,7 +29,6 @@ class Evaluator:
             while not done:
                 action, *_ = self.agent.get_actions_and_values(state)
                 nex_state, r, done, info = self.env.step(action[0])
-                print(action)
                 episode_reward += r
                 state = nex_state
                 if done:

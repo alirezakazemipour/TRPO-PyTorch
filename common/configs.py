@@ -17,8 +17,6 @@ def get_params():
     parser.add_argument("--online_wandb", action="store_true", help="Run wandb in online mode.")
     parser.add_argument("--do_test", action="store_true",
                         help="The flag determines whether to train the agent or play with it.")
-    parser.add_argument("--render", action="store_true",
-                        help="The flag determines whether to render each agent or not.")
     parser.add_argument("--train_from_scratch", action="store_true",
                         help="The flag determines whether to train from scratch or continue previous tries.")
     parser.add_argument("--seed", default=132, type=int, help="The random seed.")

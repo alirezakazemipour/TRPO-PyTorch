@@ -1,7 +1,8 @@
 from typing import Callable
 import torch
 
-
+# https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
+# Notes B2
 def cg(A: Callable, b: torch.Tensor, steps: int, tol: float = 1e-6) -> torch.Tensor: # noqa
     x = torch.zeros_like(b)
     r = b - A(x)
