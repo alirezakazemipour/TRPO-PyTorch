@@ -128,9 +128,3 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-.idea
-*.pth
-wandb
-weights
-api_key.wandb
-vid

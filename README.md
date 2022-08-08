@@ -1,11 +1,33 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://makeapullrequest.com)
 
 # TRPO-PyTorch
+According to the Policy Iteration scheme, if view Policy Gradient as a Policy Iteration procedure then if the new policy π′ with parameters θ′ is going to be better than the current policy π with parameters θ then J(θ′) ≥ J(θ′).  
 
+This implies that:
 
+<p align="center">
+  <img src="misc/eq1.png" >
+</p>  
+
+But the distributional mismatch between A<sub>π<sub>θ</sub></sub> and P<sub>θ′</sub>(τ) should be corrected.  
+
+Conservative Policy Iteration proposed the following objective and constriant to address the aforementioned issue:
+
+<p align="center">
+  <img src="misc/eq2.png" >
+</p>  
+
+where D<sub>TV</sub> <sup>Max</sup> is the maximum total deviation between π(θ) and π′(θ′).  
+
+In order to make this algorithm practical for largesacle problems such as Neural Networks where the scale of the parameter space is huge, Trust Region Policy Optimization (TRPO) proved that instead of D<sub>TV</sub> <sup>Max</sup> we can use KL Divergence (D<sub>KL</sub>) metric and further more, in order to satisfy the constraint during optimization phase, it introduced the second-order approximation of the D<sub>KL</sub> which is the Fisher Information Matrix. TRPO consequently tried to find the direction (s) and the step size (β) that the new parameters θ′ that should be lied in (`θ′ = θ + βs`) by using the resulting Fisher Information Matrix and the Conjugate Gradient algorithm.  
+
+As I searched through various repositories relating to TRPO, the only one that used TRPO on the Atari benchmark was the [baselines](https://github.com/openai/baselines) by [@OpenAI](https://github.com/openai) and that code took advantage of TensorFlow therefore, I found it movitating to bring up this repo to solve some Atari games but by using PyTorch this time. So:  
+<p align="center">
+  <b>This repository is a PyTorch implemntation of Trust Region Optimization paper on Atari benchmark</b>. 
+</p>  
 
 ## Demo
-Seaquest | MsPacman
+Beam Rider | Ms Pacman
 :------------:|:---------------:
 ![](results/beamrider.gif)|![](results/pacman.gif)
 
@@ -107,7 +129,7 @@ def load_weights(self):
 - Although the random seed of all random operations is set with the `seed` flag but still the results of different runs are not reproducible! The reason behind this behavior stems from the randomized algorithms that PyTorch tends to utilize in its **CUDA** computations to exploit parallelism on GPUs and speeding up the code. Therefore, if you want to end up with reproducible results you should run your program on your CPU device.
 
 ### Hardware Requirements
-- Runs with 8 parallel workers were carried out on [paperspace.com](https://www.paperspace.com/) [Free-GPU, 8 Cores, 30 GB RAM]. I genuinely express my deep appreciation and gratitude toward their great effort in providing such a powerful infrustructure with the inclusion of a practical **FREE of Charge ** plan. 
+- Runs with 8 parallel workers were carried out on [paperspace.com](https://www.paperspace.com/) [Free-GPU, 8 Cores, 30 GB RAM]. I genuinely express my deep appreciation and gratitude toward their great effort in providing such a powerful infrustructure with the inclusion of a practical **FREE of Charge** plan. 
 
 ## References
 1. [_Trust Region Policy Optimization_, Schulman, et al., 2015](https://arxiv.org/abs/1502.05477)
