@@ -1,7 +1,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://makeapullrequest.com)
 
 # TRPO-PyTorch
-According to the Policy Iteration scheme, if view Policy Gradient as a Policy Iteration procedure then if the new policy π′ with parameters θ′ is going to be better than the current policy π with parameters θ then J(θ′) ≥ J(θ′).  
+According to the Policy Iteration scheme, if we view Policy Gradient as a Policy Iteration procedure then if the new policy π′ with parameters θ′ is going to be better than the current policy π with parameters θ then J(θ′) ≥ J(θ′).  
 
 This implies that:
 
